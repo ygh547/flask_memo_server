@@ -68,7 +68,7 @@ class memoListResource(Resource) :
     
     # 목록
     @jwt_required()
-    
+
     def get(self) :
         # 1.클라이언트로부터 데이터를 받아온다.
         # request.args 는 딕셔너리다.
@@ -131,6 +131,7 @@ class memoListResource(Resource) :
             "count" : len(result_list),
             "items" : result_list}, 200
 
+#메모 정보 조회
 
 class memoResource(Resource) :
     # 클라이언트로부터 /memo/3 이런식으로 경로를 처리하므로
@@ -187,6 +188,13 @@ class memoResource(Resource) :
     # 데이터를 수정하는 API는 put함수를 사용
     @jwt_required()
     def put(self, memo_id) : 
+        
+        # 1. 클라이언트로부터 데이터를 받아온다.
+        # {
+        #     "title": "검사역",
+        #     "date": "2022-06-24",
+        #     "memolist": "kfc"
+        # }
 
         # body에서 전달된 데이터를 처리
         data = request.get_json()
@@ -201,28 +209,12 @@ class memoResource(Resource) :
 
             # 먼저 recipe_id에 들어있는 user_id가 이 사람인지 먼저 확인한다.
 
-            query = ''' select user_id
-                        from memo
-                        where id = %s;'''
-            record = (memo_id, ) 
+            query = ''' update memo
+                        set title = %s, date = %s , memolist = %s
+                        where id = %s and user_id = %s;'''
+            record = (data['title'], data['date'], data['memolist'],memo_id, user_id)
             cursor = connection.cursor(dictionary = True)
-
-            cursor.execute(query, record)         
-            result_list = cursor.fetchall()
-
-            recipe = result_list[0]
-            if recipe['user_id'] != user_id :
-                cursor.close()
-                connection.close()
-                return {'error' : '남의 레시피를 수정할수 없습니다.'} , 401
             
-            #2. 쿼리문 만들기
-            query = '''update memo
-                    set title= %s, date = %s, memolist = %s 
-                    where id = %s ;'''
-
-            record = (data['title'], data['date'], data['memolist'],memo_id)
-
             #3. 커서를 가져온다.
             cursor = connection.cursor()
             #4. 쿼리문을 커서를 이용해서 실행한다.
@@ -244,22 +236,26 @@ class memoResource(Resource) :
 
 
     #삭제하는 delete함수
+    @jwt_required()
     def delete(self, memo_id) :
 
         try :
             # 데이터 삭제
+            user_id = get_jwt_identity()
             #1. DB에 연결
             connection = get_connection()
             #2. 쿼리문 만들기
             query = '''delete from memo
-                    where id = %s;'''
+                        where id = %s and user_id = %s;'''
 
-            record = ( memo_id, )
+            record = ( memo_id, user_id)
 
             #3. 커서를 가져온다.
             cursor = connection.cursor()
             #4. 쿼리문을 커서를 이용해서 실행한다.
             cursor.execute(query, record)
+
+            
             #5. 커넥션을 커밋해줘야 한다. => 디비에 영구적으로 반영하라는 뜻
             connection.commit()
             #6. 자원 해제
